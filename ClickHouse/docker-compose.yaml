@@ -1,0 +1,109 @@
+services:
+  kafka:
+    image: apache/kafka:latest
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+
+      # Three listeners:
+      #   BROKER: internal broker traffic
+      #   CONTROLLER: internal controller
+      #   EXTERNAL: host access
+      KAFKA_LISTENERS: BROKER://:19092,CONTROLLER://:29092,EXTERNAL://:9092
+      KAFKA_ADVERTISED_LISTENERS: BROKER://kafka:19092,EXTERNAL://localhost:9092
+
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: BROKER:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+
+      # Use BROKER for inter-broker communication
+      KAFKA_INTER_BROKER_LISTENER_NAME: BROKER
+
+      # Controller uses its dedicated listener
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      # Required for KRaft
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29092
+
+      # Dev-safe defaults
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+
+  clickhouse-01:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse-01
+    hostname: clickhouse-01
+    user: "101:101"
+    volumes:
+      - ./config/clickhouse-01/config.d/config.xml:/etc/clickhouse-server/config.d/config.xml
+      - ./config/clickhouse-01/users.d/users.xml:/etc/clickhouse-server/users.d/users.xml
+      - ./volumes/clickhouse-01/data:/var/lib/clickhouse
+      - ./volumes/clickhouse-01/logs:/var/log/clickhouse-server
+      - ./sql:/docker-entrypoint-initdb.d
+    ports:
+      - "127.0.0.1:8123:8123"
+      - "127.0.0.1:9000:9000"
+    depends_on:
+      - kafka
+      - clickhouse-keeper-01
+      - clickhouse-keeper-02
+      - clickhouse-keeper-03
+
+  clickhouse-02:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse-02
+    hostname: clickhouse-02
+    user: "101:101"
+    volumes:
+      - ./config/clickhouse-02/config.d/config.xml:/etc/clickhouse-server/config.d/config.xml
+      - ./config/clickhouse-02/users.d/users.xml:/etc/clickhouse-server/users.d/users.xml
+      - ./volumes/clickhouse-02/data:/var/lib/clickhouse
+      - ./volumes/clickhouse-02/logs:/var/log/clickhouse-server
+    ports:
+      - "127.0.0.1:8124:8123"
+      - "127.0.0.1:9001:9000"
+    depends_on:
+      - kafka
+      - clickhouse-keeper-01
+      - clickhouse-keeper-02
+      - clickhouse-keeper-03
+
+  clickhouse-keeper-01:
+    image: clickhouse/clickhouse-keeper:latest-alpine
+    container_name: clickhouse-keeper-01
+    hostname: clickhouse-keeper-01
+    user: "101:101"
+    volumes:
+      - ./config/clickhouse-keeper-01/keeper_config.xml:/etc/clickhouse-keeper/keeper_config.xml
+      - ./volumes/clickhouse-keeper-01/data:/var/lib/clickhouse-keeper
+      - ./volumes/clickhouse-keeper-01/logs:/var/log/clickhouse-keeper
+    ports:
+      - "127.0.0.1:9181:9181"
+
+  clickhouse-keeper-02:
+    image: clickhouse/clickhouse-keeper:latest-alpine
+    container_name: clickhouse-keeper-02
+    hostname: clickhouse-keeper-02
+    user: "101:101"
+    volumes:
+      - ./config/clickhouse-keeper-02/keeper_config.xml:/etc/clickhouse-keeper/keeper_config.xml
+      - ./volumes/clickhouse-keeper-02/data:/var/lib/clickhouse-keeper
+      - ./volumes/clickhouse-keeper-02/logs:/var/log/clickhouse-keeper
+    ports:
+      - "127.0.0.1:9182:9181"
+
+  clickhouse-keeper-03:
+    image: clickhouse/clickhouse-keeper:latest-alpine
+    container_name: clickhouse-keeper-03
+    hostname: clickhouse-keeper-03
+    user: "101:101"
+    volumes:
+      - ./config/clickhouse-keeper-03/keeper_config.xml:/etc/clickhouse-keeper/keeper_config.xml
+      - ./volumes/clickhouse-keeper-03/data:/var/lib/clickhouse-keeper
+      - ./volumes/clickhouse-keeper-03/logs:/var/log/clickhouse-keeper
+    ports:
+      - "127.0.0.1:9183:9181"
