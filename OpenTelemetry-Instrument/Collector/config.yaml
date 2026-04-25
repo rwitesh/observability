@@ -1,27 +1,17 @@
 receivers:
   filelog:
     include:
-      - /var/log/clickhouse-server/clickhouse-server.log
-      - /var/log/clickhouse-server/clickhouse-server.err.log
+      - /var/log/*/*.log*
     start_at: beginning
-  
-  prometheus:
-    config:
-      scrape_configs:
-        - job_name: "demo"
-          scrape_interval: 5s
-          static_configs:
-            - targets: ["host.docker.internal:8080"]
-    
+    include_file_path: true
+
   hostmetrics:
     collection_interval: 5s
     scrapers:
-      cpu:
       memory:
+      system:
+      cpu:
       disk:
-      filesystem:
-      network:
-      load:
 
   otlp:
     protocols:
@@ -30,40 +20,57 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318
 
+
 processors:
-  filter/only_summary:
-    metrics:
-      metric:
-          - 'type != METRIC_DATA_TYPE_SUMMARY'
-      datapoint:
-          - 'metric.type != METRIC_DATA_TYPE_SUMMARY'
+  # Adds service.name and other resource-level metadata
+  resource:
+    attributes:
+      - action: upsert
+        key: service.name
+        value: test_service   # change this per service / env
+
+  # Optional: useful if you later want dynamic parsing
+  transform/set_service_from_file:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          # Example: override service.name if needed (disabled by default)
+          # - set(resource.attributes["service.name"], attributes["log.file.path"])
+          #   where attributes["log.file.path"] != nil
+
   batch:
-    timeout: 30s
-    send_batch_size: 10
+    timeout: 10s
+
 
 exporters:
-  debug:
-    verbosity: detailed
-  prometheus:
-    endpoint: "0.0.0.0:8889" 
   otlphttp:
     # endpoint: "https://otel.kloudmate.dev:4318"
     endpoint: "http://host.docker.internal:4318"
-    headers: 
+    headers:
       Authorization: sk_Ovy8MflXEvH9KajY8lwUxyhW
-    timeout: 5s
+    timeout: 10s
+
+  debug:
+    verbosity: detailed
+
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+
 
 service:
   pipelines:
-    logs:
-      receivers: [otlp, filelog]
-      processors: [batch]
-      exporters: [otlphttp]
+    # logs:
+    #   receivers: [otlp, filelog]
+    #   processors: [resource, batch]
+    #   exporters: [otlphttp]
+
     metrics:
       receivers: [otlp, hostmetrics]
-      processors: [batch]
-      exporters: [otlphttp]
+      processors: [resource, batch]
+      exporters: [otlphttp, debug]
+
     traces:
-      receivers: [otlp]    
-      processors: [batch] 
+      receivers: [otlp]
+      processors: [resource, batch]
       exporters: [otlphttp]

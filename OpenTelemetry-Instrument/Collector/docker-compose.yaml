@@ -3,7 +3,8 @@ services:
     image: otel/opentelemetry-collector-contrib:latest
     volumes:
       - ./config.yaml:/etc/otelcol-contrib/config.yaml
-      - ../../Clickhouse/volume/clickhouse1/logs:/var/log/clickhouse-server:ro
+      - ../../Clickhouse/volumes/clickhouse-01/logs:/var/log/clickhouse-server:ro
+      - /etc/passwd:/etc/passwd:ro  
     ports:
   
       - "4315:4317"

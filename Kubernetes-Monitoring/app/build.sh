@@ -1,0 +1,1 @@
+docker build -t nginx-demo:v1 .

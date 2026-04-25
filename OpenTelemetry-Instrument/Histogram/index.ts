@@ -29,7 +29,7 @@ const reader = new PeriodicExportingMetricReader({
     headers: {},
     temporalityPreference: AggregationTemporality.DELTA
   }),
-  exportIntervalMillis: 5000,
+  exportIntervalMillis: 2000,
 });
 
 const provider = new MeterProvider({
@@ -41,11 +41,11 @@ metrics.setGlobalMeterProvider(provider);
 
 const meter = metrics.getMeter("demo-histogram");
 
-const histogram = meter.createHistogram("kloudmate.duration", {
+const histogram = meter.createHistogram("http.response.duration_delta", {
   description: "The duration of the request",
   unit: "ms",
   advice: {
-    explicitBucketBoundaries: [5, 10, 20, 50, 100],
+    explicitBucketBoundaries: [5, 10, 20, 50],
   },
 });
 
@@ -53,8 +53,20 @@ function randomInRange(min: number, max: number): number {
   return Math.random() * (max - min) + min;
 }
 
-setInterval(() => {
-  const value = randomInRange(1, 100);
-  histogram.record(value);
-  console.log(`Recorded value: ${value}`);
+let count = 0;
+const MAX_RECORDS = 20;
+
+const interval = setInterval(async () => {
+  histogram.record(1);
+  histogram.record(15);
+  count++;
+  console.log(`Recorded ${count}/${MAX_RECORDS}`);
+
+  if (count >= MAX_RECORDS) {
+    clearInterval(interval);
+    console.log("Done recording, flushing...");
+    await reader.forceFlush();
+    console.log("Flushed, exiting");
+    process.exit(0);
+  }
 }, 1000);
